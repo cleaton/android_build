@@ -362,7 +362,6 @@ $(INSTALLED_RAMDISK_TARGET): $(MKBOOTFS) $(INTERNAL_RAMDISK_FILES) $(SELINUX_DEP
 	$(call pretty,"Target ram disk: $@")
 	$(hide) $(MKBOOTFS) $(TARGET_ROOT_OUT) | $(MINIGZIP) > $@
 
-
 ifneq ($(strip $(TARGET_NO_KERNEL)),true)
 
 # -----------------------------------------------------------------
@@ -705,44 +704,7 @@ $(recovery_ramdisk): $(MKBOOTFS) \
 	@echo ----- Making recovery ramdisk ------
 	$(MINIGZIP) < $(recovery_uncompressed_ramdisk) > $@
 
-ifeq ($(BOARD_USES_UBOOT),true)
-INTERNAL_RECOVERYIMAGE_ARGS := -A ARM -O Linux -T RAMDisk -C gzip -n Image -d $(recovery_ramdisk)
-recovery_uboot_ramdisk := $(recovery_ramdisk:%.img=%.ub)
-
-$(INSTALLED_RECOVERYIMAGE_TARGET): $(MKIMAGE) $(recovery_ramdisk) \
-		$(recovery_kernel)
-	@echo ----- Making recovery image ------
-	$(MKIMAGE) $(INTERNAL_RECOVERYIMAGE_ARGS) $(recovery_uboot_ramdisk)
-	@echo ----- Made recovery uboot ramdisk -------- $(recovery_uboot_ramdisk)
-	$(hide) rm -f $@
-	zip -qDj $@ $(recovery_uboot_ramdisk) $(recovery_kernel)
-	@echo ----- Made recovery image \(zip\) -------- $@
-
-else ifeq ($(BOARD_USES_UBOOT_MULTIIMAGE),true)
-INTERNAL_RECOVERYIMAGE_ARGS := -A ARM -O Linux -T multi -C none -n Image
-BOARD_UBOOT_ENTRY := $(strip $(BOARD_UBOOT_ENTRY))
-
-ifdef BOARD_UBOOT_ENTRY
-  INTERNAL_RECOVERYIMAGE_ARGS += -e $(BOARD_UBOOT_ENTRY)
-endif
-
-BOARD_UBOOT_LOAD := $(strip $(BOARD_UBOOT_LOAD))
-
-ifdef BOARD_UBOOT_LOAD
-  INTERNAL_RECOVERYIMAGE_ARGS += -a $(BOARD_UBOOT_LOAD)
-endif
-
-UBOOT_DATA_ARGS = $(shell echo $(recovery_kernel):$(recovery_ramdisk)|sed -e 's/[[:space:]]//g')
-INTERNAL_RECOVERYIMAGE_ARGS += -d $(UBOOT_DATA_ARGS)
-
-$(INSTALLED_RECOVERYIMAGE_TARGET): $(MKIMAGE) \
-		$(recovery_ramdisk) \
-		$(recovery_kernel)
-	@echo ----- Making recovery uboot image ------
-	$(MKIMAGE) $(INTERNAL_RECOVERYIMAGE_ARGS) $@
-	@echo ----- Made recovery uboot image -------- $@
-
-else ifndef BOARD_CUSTOM_BOOTIMG_MK
+ifndef BOARD_CUSTOM_BOOTIMG_MK
 $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTIMG) \
 		$(recovery_ramdisk) \
 		$(recovery_kernel)
@@ -853,7 +815,11 @@ SYSTEMIMAGE_SOURCE_DIR := $(TARGET_OUT)
 # image size check calculation.
 ifneq ($(INSTALLED_RECOVERYIMAGE_TARGET),)
 intermediates := $(call intermediates-dir-for,PACKAGING,recovery_patch)
+ifndef BOARD_CUSTOM_BOOTIMG_MK
 RECOVERY_FROM_BOOT_PATCH := $(intermediates)/recovery_from_boot.p
+else
+RECOVERY_FROM_BOOT_PATCH :=
+endif
 $(RECOVERY_FROM_BOOT_PATCH): $(INSTALLED_RECOVERYIMAGE_TARGET) \
                              $(INSTALLED_BOOTIMAGE_TARGET) \
 			     $(HOST_OUT_EXECUTABLES)/imgdiff \
@@ -1129,21 +1095,6 @@ ifeq ($(TARGET_RELEASETOOLS_EXTENSIONS),)
 $(BUILT_TARGET_FILES_PACKAGE): tool_extensions := $(TARGET_DEVICE_DIR)/../common
 else
 $(BUILT_TARGET_FILES_PACKAGE): tool_extensions := $(TARGET_RELEASETOOLS_EXTENSIONS)
-endif
-
-ifeq ($(BOARD_USES_UBOOT_MULTIIMAGE),true)
-
-  ZIP_SAVE_UBOOTIMG_ARGS := -A ARM -O Linux -T multi -C none -n Image
-
-  BOARD_UBOOT_ENTRY := $(strip $(BOARD_UBOOT_ENTRY))
-  ifdef BOARD_UBOOT_ENTRY
-    ZIP_SAVE_UBOOTIMG_ARGS += -e $(BOARD_UBOOT_ENTRY)
-  endif
-  BOARD_UBOOT_LOAD := $(strip $(BOARD_UBOOT_LOAD))
-  ifdef BOARD_UBOOT_LOAD
-    ZIP_SAVE_UBOOTIMG_ARGS += -a $(BOARD_UBOOT_LOAD)
-  endif
-
 endif
 
 # Depending on the various images guarantees that the underlying
